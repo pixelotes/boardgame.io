@@ -1,61 +1,55 @@
 # Plugins
 
-The Plugin API allows you to provide off-the-shelf objects
-that add custom functionality to [boardgame.io](https://boardgame.io/).
-You can create wrappers around moves, provide custom interfaces
-in `G` and much more.
+The Plugin API allows you to create objects that expose
+custom functionality to [boardgame.io](https://boardgame.io/).
+You can create wrappers around moves, add API's to `ctx` etc.
 
-#### Creating a Plugin
+### Creating a Plugin
 
 A plugin is an object that contains the following fields.
-All fields are optional and typically accept the `game`
-object as a parameter.
 
 ```js
 {
+  // Required.
+  name: 'plugin-name',
+
+  // Initialize the plugin's data.
+  // This is stored in a special area of the state object
+  // and not exposed to the move functions.
+  setup: ({ G, ctx, game }) => data object,
+
+  // Create an object that becomes available in `ctx`
+  // under `ctx['plugin-name']`.
+  // This is called at the beginning of a move or event.
+  // This object will be held in memory until flush (below)
+  // is called.
+  api: ({ G, ctx, game, data, playerID }) => api object,
+
+  // Return an updated version of data that is persisted
+  // in the game's state object.
+  flush: ({ G, ctx, game, data, api }) => data object,
+
   // Function that accepts a move / trigger function
   // and returns another function that wraps it. This
   // wrapper can modify G before passing it down to
   // the wrapped function. It is a good practice to
-  // undo the change at the end of the call. You can
-  // also use the more convenient preMove / postMove
-  // hooks below if all you desire is to preprocess
-  // and postprocess G.
-  fnWrap: (fn, game) => (G, ctx, ...args) => {
+  // undo the change at the end of the call.
+  fnWrap: (fn) => (G, ctx, ...args) => {
     G = preprocess(G);
     G = fn(G, ctx, ...args);
     G = postprocess(G);
     return G;
   },
 
-  G: {
-    // Called during setup in order to add state to G.
-    setup: (G, ctx, game) => G,
-
-    // Called right before a move / event in order to preprocess G.
-    preMove: (G, ctx, game) => G,
-
-    // Called right after a move / event in order to postprocess G.
-    postMove: (G, ctx, game) => G,
-
-    // Called when a phase begins.
-    onPhaseBegin: (G, ctx, game) => G,
-  },
-
-  ctx: {
-    // Called during setup in order to add state to ctx.
-    setup: (ctx, game) => ctx,
-
-    // Called right before a move / event in order to preprocess ctx.
-    preMove: (ctx, game) => ctx,
-
-    // Called when a phase begins.
-    onPhaseBegin: (ctx, game) => ctx,
-  },
+  // Function that allows the plugin to indicate that it
+  // should not be run on the client. If it returns true,
+  // the client will discard the state update and wait
+  // for the master instead.
+  noClient: ({ G, ctx, game, data, api }) => boolean,
 }
 ```
 
-#### Adding Plugins to Games
+### Adding Plugins to Games
 
 The list of plugins is specified in the game spec.
 
@@ -73,54 +67,68 @@ const game = {
 };
 ```
 
-!> Plugins are applied one after the other in the order
+?> Plugins are applied one after the other in the order
 that they are specified (from left to right).
 
-#### Available Plugins
+### Configuring Plugins
 
-**PluginPlayer**
+Some plugins may need a user to provide some configuration. The recommended way to do that is to design the plugin as a factory function that takes configuration as its arguments and returns a plugin object.
+
+```js
+import { ConfigurablePlugin } from './plugins';
+
+const game = {
+  name: 'my-game',
+  plugins: [
+    ConfigurablePlugin(options),
+  ],
+}
+```
+
+?> See `PluginPlayer` below for an example of this in practice.
+
+### Available Plugins
+
+#### PluginPlayer
 
 ```js
 import { PluginPlayer } from 'boardgame.io/plugins';
 
+// define a function to initialize each player’s state
+const playerSetup = (playerID) => ({ ... });
+
 const game = {
-  playerSetup: (playerID) => ({ ... }),
-  plugins: [PluginPlayer],
+  plugins: [
+    // pass your function to the player plugin
+    PluginPlayer({ setup: playerSetup }),
+  ],
 };
 ```
 
 `PluginPlayer` makes it easy to manage player state.
-It creates an object `G.players` that
-stores state for individual players:
+It creates an object `players` that
+stores state for individual players.  This object is
+stored in the plugin's private storage area:
 
 ```
-G: {
-  players: {
-    '0': { ... },
-    '1': { ... },
-    '2': { ... },
-    ...
-  }
+players: {
+  '0': { ... },
+  '1': { ... },
+  '2': { ... },
+  ...
 }
 ```
 
-The initial values of these states are determined by the `playerSetup` function, which creates the state for a particular `playerID`.
+The initial values of these states are determined by the `setup` function in its options object, which creates the state for a particular `playerID`.
 
-Before each move, the plugin makes the state associated with the
-current player available at `G.player`. If this is a 2 player game,
-then it also adds `G.opponent`. These fields can be modified and the
-corresponding entries in `G.players` will be updated at the end of the move.
+The record associated with the current player can be accessed
+via `ctx.player.get()`. If this is a 2 player game,
+then the opponent's record is available using `ctx.player.opponent.get()`. These fields can be modified using their corresponding
+`set()` versions.
 
-```
-// The current player is '0'.
-
-G: {
-  player: { ... }  // copy of players['0']
-  opponent: { ... }  // copy of players['1']
-
-  players: {
-    '0': { ... },
-    '1': { ... },
-  }
-}
+```js
+ctx.player.get() // Get the current player's record.
+ctx.player.set() // Update the current player's record.
+ctx.player.opponent.get() // Get the opponent player's record.
+ctx.player.opponent.set() // Update the opponent player's record.
 ```

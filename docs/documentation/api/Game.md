@@ -19,6 +19,8 @@
       move: (G, ctx) => {},
       undoable: false,  // prevents undoing the move.
       redact: true,     // prevents the move arguments from showing up in the log.
+      client: false,    // prevents the move from running on the client.
+      noLimit: true,    // prevents the move counting towards a player’s number of moves.
     },
   },
 
@@ -88,8 +90,20 @@
     ...
   },
 
+  // The minimum and maximum number of players supported
+  // (This is only enforced when using the Lobby server component.)
+  minPlayers: 1,
+  maxPlayers: 4,
+
   // Ends the game if this returns anything.
   // The return value is available in `ctx.gameover`.
   endIf: (G, ctx) => obj,
+
+  // Called at the end of the game.
+  // `ctx.gameover` is available at this point.
+  onEnd: (G, ctx) => G,
+  
+  // Disable undo feature for all the moves in the game
+  disableUndo: true,
 }
 ```

@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { Client } from 'boardgame.io/react';
+import { Debug } from 'boardgame.io/debug';
 
 function IsVictory(cells) {
   const positions = [
@@ -14,19 +15,12 @@ function IsVictory(cells) {
     [2, 4, 6],
   ];
 
-  for (let pos of positions) {
-    const symbol = cells[pos[0]];
-    let winner = symbol;
-    for (let i of pos) {
-      if (cells[i] != symbol) {
-        winner = null;
-        break;
-      }
-    }
-    if (winner != null) return true;
-  }
+  const isRowComplete = row => {
+    const symbols = row.map(i => cells[i]);
+    return symbols.every(i => i !== null && i === symbols[0]);
+  };
 
-  return false;
+  return positions.map(isRowComplete).some(i => i === true);
 }
 
 const TicTacToe = {
@@ -113,7 +107,7 @@ class TicTacToeBoard extends React.Component {
 var App = Client({
   board: TicTacToeBoard,
   game: TicTacToe,
-  debug: { showGameInfo: false },
+  debug: { impl: Debug },
 });
 
 ReactDOM.render(<App />, document.getElementById('app'));

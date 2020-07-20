@@ -3,13 +3,11 @@
     "target": "esnext",
     "module": "esnext",
     "moduleResolution": "node",
-    "declaration": true,
-    "outDir": "built-ts",
+    "declaration": false,
     "strict": false,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "plugins": [
-      { "transform": "ts-transformer-imports" }
-    ]
+    "jsx": "react",
+    "plugins": [{ "transform": "ts-transformer-imports" }]
   }
 }

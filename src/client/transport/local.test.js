@@ -7,14 +7,123 @@
  */
 
 import { createStore } from 'redux';
-import { LocalTransport, LocalMaster } from './local';
+import { LocalTransport, LocalMaster, Local, GetBotPlayer } from './local';
 import { makeMove, gameEvent } from '../../core/action-creators';
 import { CreateGameReducer } from '../../core/reducer';
 import { InitializeGame } from '../../core/initialize';
+import { Client } from '../client';
+import { RandomBot } from '../../ai/random-bot';
+import { Stage } from '../../core/turn-order';
+
+jest.useFakeTimers();
+
+describe('bots', () => {
+  const game = {
+    moves: {
+      A: G => G,
+    },
+    ai: {
+      enumerate: () => [{ move: 'A' }],
+    },
+  };
+
+  test('make bot move', async () => {
+    const client = Client({
+      game: { ...game },
+      playerID: '0',
+      multiplayer: Local({ bots: { '1': RandomBot } }),
+    });
+
+    client.start();
+
+    // Make it Player 1's turn and make the bot move.
+    // There isn't a good way to test the result of this
+    // due to the setTimeout and async calls. These are
+    // run primarily to cover the lines in the test and
+    // ensure that there are no exceptions.
+    client.events.endTurn();
+    jest.runAllTimers();
+  });
+
+  test('no bot move', async () => {
+    const client = Client({
+      numPlayers: 3,
+      game: { ...game },
+      playerID: '0',
+      multiplayer: Local({ bots: { '2': RandomBot } }),
+    });
+
+    client.start();
+
+    // Make it Player 1's turn. No bot move.
+    // There isn't a good way to test the result of this
+    // due to the setTimeout and async calls. These are
+    // run primarily to cover the lines in the test and
+    // ensure that there are no exceptions.
+    client.events.endTurn();
+    jest.runAllTimers();
+  });
+});
+
+describe('GetBotPlayer', () => {
+  test('stages', () => {
+    const result = GetBotPlayer(
+      {
+        ctx: {
+          activePlayers: {
+            '1': Stage.NULL,
+          },
+        },
+      },
+      {
+        '0': {},
+        '1': {},
+      }
+    );
+    expect(result).toEqual('1');
+  });
+
+  test('no stages', () => {
+    const result = GetBotPlayer(
+      {
+        ctx: {
+          currentPlayer: '0',
+        },
+      },
+      { '0': {} }
+    );
+    expect(result).toEqual('0');
+  });
+
+  test('null', () => {
+    const result = GetBotPlayer(
+      {
+        ctx: {
+          currentPlayer: '1',
+        },
+      },
+      { '0': {} }
+    );
+    expect(result).toEqual(null);
+  });
+
+  test('gameover', () => {
+    const result = GetBotPlayer(
+      {
+        ctx: {
+          currentPlayer: '0',
+          gameover: true,
+        },
+      },
+      { '0': {} }
+    );
+    expect(result).toEqual(null);
+  });
+});
 
 describe('LocalMaster', () => {
   const game = {};
-  const master = LocalMaster(game);
+  const master = new LocalMaster({ game });
 
   const storeA = { dispatch: jest.fn(), getState: () => ({ _stateID: 0 }) };
   const storeB = { dispatch: jest.fn(), getState: () => ({ _stateID: 0 }) };
@@ -82,7 +191,7 @@ describe('LocalTransport', () => {
 
     test('gameID', () => {
       m.updateGameID('test');
-      expect(m.gameID).toBe('default:test');
+      expect(m.gameID).toBe('test');
       expect(master.connect).toBeCalled();
     });
 
@@ -114,21 +223,21 @@ describe('LocalTransport', () => {
       expect(store.getState()).not.toMatchObject(restored);
       m.onUpdate('unknown gameID', restored);
       expect(store.getState()).not.toMatchObject(restored);
-      m.onUpdate('default:default', restored);
+      m.onUpdate('default', restored);
       expect(store.getState()).not.toMatchObject(restored);
 
       // Only if the stateID is not stale.
       restored._stateID = 1;
-      m.onUpdate('default:default', restored);
+      m.onUpdate('default', restored);
       expect(store.getState()).toMatchObject(restored);
     });
 
     test('receive sync', () => {
       const restored = { restore: true };
       expect(store.getState()).not.toMatchObject(restored);
-      m.onSync('unknown gameID', restored);
+      m.onSync('unknown gameID', { state: restored });
       expect(store.getState()).not.toMatchObject(restored);
-      m.onSync('default:default', restored);
+      m.onSync('default', { state: restored });
       expect(store.getState()).toMatchObject(restored);
     });
 
@@ -139,7 +248,7 @@ describe('LocalTransport', () => {
       expect(m.master.onUpdate).lastCalledWith(
         action,
         state._stateID,
-        'default:default',
+        'default',
         null
       );
     });

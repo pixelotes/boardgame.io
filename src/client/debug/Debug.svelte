@@ -30,10 +30,13 @@
 
   let visible = true;
   function Keypress(e) {
+    // Toggle debugger visibilty
     if (e.key == '.') {
       visible = !visible;
       return;
     }
+    // Set displayed pane
+    if (!visible) return;
     Object.entries(panes).forEach(([key, { shortcut }]) => {
       if (e.key == shortcut) {
         pane = key;
@@ -72,9 +75,10 @@
 
   .secondary-pane {
     background: #fefefe;
+    overflow-y: scroll;
   }
 
-  :global(button, select) {
+  .debug-panel :global(button, select) {
     cursor: pointer;
     outline: none;
     background: #eee;
@@ -84,21 +88,21 @@
     border-radius: 3px;
   }
 
-  :global(button) {
+  .debug-panel :global(button) {
     padding-left: 10px;
     padding-right: 10px;
   }
 
-  :global(button:hover) {
+  .debug-panel :global(button:hover) {
     background: #ddd;
   }
 
-  :global(button:active) {
+  .debug-panel :global(button:active) {
     background: #888;
     color: #fff;
   }
 
-  :global(section) {
+  .debug-panel :global(section) {
     margin-bottom: 20px;
   }
 </style>

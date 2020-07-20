@@ -14,8 +14,7 @@ import filesize from 'rollup-plugin-filesize';
 import svelte from 'rollup-plugin-svelte';
 import { terser } from 'rollup-plugin-terser';
 import pkg from './package.json';
-import ttypescript from 'ttypescript';
-import tsPlugin from 'rollup-plugin-typescript2';
+import typescript from 'rollup-plugin-typescript2';
 const subpackages = require('./subpackages');
 
 const external = [
@@ -27,12 +26,22 @@ const external = [
 const plugins = [
   babel({ exclude: '**/node_modules/**' }),
   resolve({ browser: true, only: [/svelte/] }),
+  typescript({
+    typescript: require('typescript'),
+    tsconfigOverride: {
+      compilerOptions: {
+        declaration: true,
+        declarationDir: './dist/types',
+      },
+    },
+    useTsconfigDeclarationDir: true,
+  }),
   svelte({ extensions: ['.svelte'] }),
 ];
 
 const serverPlugins = [
   resolve(),
-  tsPlugin({ typescript: ttypescript }),
+  typescript({ typescript: require('typescript') }),
   babel({ exclude: ['**/node_modules/**'] }),
   commonjs({ include: 'node_modules/**' }),
 ];
@@ -40,8 +49,13 @@ const serverPlugins = [
 const minifiedPlugins = [
   babel({ exclude: '**/node_modules/**' }),
   resolve({ browser: true }),
+  typescript({ typescript: require('typescript') }),
   svelte({ extensions: ['.svelte'] }),
   commonjs(),
+  replace({
+    include: 'src/**',
+    'process.env.NODE_ENV': JSON.stringify('development'),
+  }),
   replace({
     exclude: 'src/**',
     'process.env.NODE_ENV': JSON.stringify('production'),
@@ -54,7 +68,7 @@ export default [
   // Subpackages.
   {
     input: subpackages.reduce((obj, name) => {
-      obj[name] = `packages/${name}.js`;
+      obj[name] = `packages/${name}.ts`;
       return obj;
     }, {}),
     external,
@@ -74,7 +88,8 @@ export default [
   // Server.
   {
     input: 'packages/server.ts',
-    output: { file: 'dist/server.js', format: 'cjs', name: 'Server' },
+    output: { dir: 'dist/cjs', format: 'cjs' },
+    external,
     plugins: serverPlugins,
   },
 
@@ -93,14 +108,12 @@ export default [
 
   // Browser minified version.
   {
-    input: 'packages/main.js',
-    external: ['react'],
+    input: 'packages/client.ts',
     output: [
       {
         file: pkg.unpkg,
         format: 'umd',
         name: 'BoardgameIO',
-        globals: { react: 'React' },
       },
     ],
     plugins: minifiedPlugins,

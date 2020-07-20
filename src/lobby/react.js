@@ -10,6 +10,8 @@ import React from 'react';
 import Cookies from 'react-cookies';
 import PropTypes from 'prop-types';
 import { Client } from '../client/react';
+import { MCTSBot } from '../ai/mcts-bot';
+import { Local } from '../client/transport/local';
 import { SocketIO } from '../client/transport/socketio';
 import { LobbyConnection } from './connection';
 import LobbyLoginForm from './login-form';
@@ -33,6 +35,7 @@ const LobbyPhases = {
  * @param {string} gameServer - Address of the game server (for example 'localhost:8001').
  *                              If not set, defaults to the server that served the page.
  * @param {function} clientFactory - Function that is used to create the game clients.
+ * @param {number} refreshInterval - Interval between server updates (default: 2000ms).
  * @param {bool}   debug - Enable debug information (default: false).
  *
  * Returns:
@@ -45,11 +48,13 @@ class Lobby extends React.Component {
     gameServer: PropTypes.string,
     debug: PropTypes.bool,
     clientFactory: PropTypes.func,
+    refreshInterval: PropTypes.number,
   };
 
   static defaultProps = {
     debug: false,
     clientFactory: Client,
+    refreshInterval: 2000,
   };
 
   state = {
@@ -63,7 +68,7 @@ class Lobby extends React.Component {
   constructor(props) {
     super(props);
     this._createConnection(this.props);
-    this._updateConnection();
+    setInterval(this._updateConnection, this.props.refreshInterval);
   }
 
   componentDidMount() {
@@ -185,6 +190,15 @@ class Lobby extends React.Component {
       }
     }
 
+    if (gameOpts.numPlayers == 1) {
+      const maxPlayers = gameCode.game.maxPlayers;
+      let bots = {};
+      for (let i = 1; i < maxPlayers; i++) {
+        bots[i + ''] = MCTSBot;
+      }
+      multiplayer = Local({ bots });
+    }
+
     const app = this.props.clientFactory({
       game: gameCode.game,
       board: gameCode.board,
@@ -195,7 +209,7 @@ class Lobby extends React.Component {
     const game = {
       app: app,
       gameID: gameOpts.gameID,
-      playerID: gameOpts.numPlayers > 1 ? gameOpts.playerID : null,
+      playerID: gameOpts.numPlayers > 1 ? gameOpts.playerID : '0',
       credentials: this.connection.playerCredentials,
     };
 
